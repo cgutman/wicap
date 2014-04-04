@@ -18,20 +18,6 @@
 
 #define SERVER_PORT 40000
 
-
-void handler(int sig) {
-  void *array[10];
-  size_t size;
-
-  // get void*'s for all entries on the stack
-  size = backtrace(array, 10);
-
-  // print out all the frames to stderr
-  fprintf(stderr, "Error: signal %d:\n", sig);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  exit(1);
-}
-
 int is_from_wicap(void* packet, int captured_size) {
 	struct ethhdr *ethhdr;
 	struct iphdr *iphdr;
@@ -100,8 +86,6 @@ packet_callback(void* packet, int total_size, int captured_size) {
 
 int main(int argc, char* argv[]) {
 	int err;
-
-  signal(SIGSEGV, handler);   // install our handler
 
 	err = start_server(SERVER_PORT);
 	if (err < 0) {
