@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
@@ -17,6 +18,7 @@
 struct client_entry {
 	struct client_entry *next;
 	int sock;
+	struct sockaddr_in peeraddr;
 };
 
 static int server_sock;
@@ -35,7 +37,9 @@ void send_data(void* buffer, int size) {
 	while (current_client != NULL) {
 		err = send(current_client->sock, buffer, size, 0);
 		if (err <= 0) {
-			printf("Client disconnected (Error %d)\n", errno);
+			fprintf(stderr, "Client disconnected (%s:%d)\n",
+				inet_ntoa(current_client->peeraddr.sin_addr),
+				htons(current_client->peeraddr.sin_port));
 			if (last_client == NULL) {
 				client_head = current_client->next;
 				free(current_client);
@@ -57,6 +61,7 @@ void* server_thread_func(void* context) {
 	struct client_entry *new_entry;
 	char global_header[GLOBAL_HEADER_SIZE];
 	int err;
+	socklen_t addr_len;
 
 	// We only need to generate a global header once
 	generate_global_header(global_header);
@@ -64,13 +69,15 @@ void* server_thread_func(void* context) {
 	for (;;) {
 		new_entry = malloc(sizeof(*new_entry));
 		if (new_entry == NULL) {
-			printf("malloc() failed\n");
+			fprintf(stderr, "malloc() failed\n");
 			return NULL;
 		}
 
-		new_entry->sock = accept(server_sock, NULL, NULL);
+		addr_len = sizeof(new_entry->peeraddr);
+		new_entry->sock = accept(server_sock,
+			(struct sockaddr*)&new_entry->peeraddr, &addr_len);
 		if (new_entry->sock == -1) {
-			printf("accept() failed: %d\n", errno);
+			fprintf(stderr, "accept() failed: %d\n", errno);
 			free(new_entry);
 			return NULL;
 		}
@@ -78,11 +85,15 @@ void* server_thread_func(void* context) {
 		// Send the global header first on every new connection
 		err = send(new_entry->sock, global_header, GLOBAL_HEADER_SIZE, 0);
 		if (err <= 0) {
-			printf("send() failed: %d\n", errno);
+			fprintf(stderr, "send() failed: %d\n", errno);
 			close(new_entry->sock);
 			free(new_entry);
 			continue;
 		}
+
+		fprintf(stderr, "Client connected (%s:%d)\n",
+			inet_ntoa(new_entry->peeraddr.sin_addr),
+			htons(new_entry->peeraddr.sin_port));
 
 		pthread_mutex_lock(&client_lock);
 		new_entry->next = client_head;
@@ -91,6 +102,25 @@ void* server_thread_func(void* context) {
 	}
 
 	return NULL;
+}
+
+int is_tuple_client(unsigned int addr, unsigned short port) {
+	struct client_entry *current_client;
+	int ret = 0;
+	
+	pthread_mutex_lock(&client_lock);
+	current_client = client_head;
+	while (current_client != NULL) {
+		if (current_client->peeraddr.sin_port == port &&
+			current_client->peeraddr.sin_addr.s_addr == addr) {
+			ret = 1;
+			break;
+		}
+		current_client = current_client->next;
+	}
+	pthread_mutex_unlock(&client_lock);
+
+	return ret;
 }
 
 int start_server(unsigned short port) {
@@ -103,13 +133,13 @@ int start_server(unsigned short port) {
 	sa.sa_handler = SIG_IGN;
 	sa.sa_flags = 0;
 	if (sigaction(SIGPIPE, &sa, 0) == -1) {
-		printf("sigaction() failed: %d\n", errno);
+		fprintf(stderr, "sigaction() failed: %d\n", errno);
 		return errno;
 	}
 
 	server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (server_sock == -1) {
-		printf("socket() failed: %d\n", errno);
+		fprintf(stderr, "socket() failed: %d\n", errno);
 		return errno;
 	}
 
@@ -118,21 +148,21 @@ int start_server(unsigned short port) {
 	addrin.sin_port = htons(port);
 	err = bind(server_sock, (struct sockaddr*)&addrin, sizeof(addrin));
 	if (err < 0) {
-		printf("bind() failed: %d\n", errno);
+		fprintf(stderr, "bind() failed: %d\n", errno);
 		close(server_sock);
 		return errno;
 	}
 
 	err = listen(server_sock, SOMAXCONN);
 	if (err < 0) {
-		printf("listen() failed: %d\n", errno);
+		fprintf(stderr, "listen() failed: %d\n", errno);
 		close(server_sock);
 		return errno;
 	}
 
 	err = pthread_create(&server_thread, NULL, server_thread_func, NULL);
 	if (err < 0) {
-		printf("pthread_create() failed: %d\n", err);
+		fprintf(stderr, "pthread_create() failed: %d\n", err);
 		close(server_sock);
 		return err;
 	}

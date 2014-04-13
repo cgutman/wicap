@@ -28,6 +28,7 @@ typedef void (*capture_callback)(void* packet, int total_size,
 
 int start_server(unsigned short port);
 void send_data(void* buffer, int size);
+int is_tuple_client(unsigned int addr, unsigned short port);
 
 void generate_global_header(void* buffer);
 void generate_packet_header(int total_size, int captured_size, void* buffer);

@@ -20,13 +20,13 @@ int run_cap(capture_callback callback) {
 
 	sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	if (sock == -1) {
-		printf("socket() failed: %d\n", errno);
+		fprintf(stderr, "socket() failed: %d\n", errno);
 		return errno;
 	}
 
 	packet = malloc(MAX_PACKET_SIZE);
 	if (packet == NULL) {
-		printf("malloc() failed\n");
+		fprintf(stderr, "malloc() failed\n");
 		close(sock);
 		return -1;
 	}
@@ -39,7 +39,7 @@ int run_cap(capture_callback callback) {
 		recv_bytes = recvfrom(sock, packet, MAX_PACKET_SIZE,
 			MSG_TRUNC, (struct sockaddr*)&from, &from_len);
 		if (recv_bytes <= 0) {
-			printf("recvfrom() failed: %d\n", errno);
+			fprintf(stderr, "recvfrom() failed: %d\n", errno);
 			free(packet);
 			close(sock);
 			return errno;
