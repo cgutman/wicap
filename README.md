@@ -9,8 +9,14 @@ Build using the makefile and run the output as root. The server listens on TCP 4
 This binary can also be used for doing live packet captures from a rooted Android device.
 
 ## Examples of client usage
-Save a remote capture to a file: nc remote-host 40000 > capture.cap
+To save a remote capture to a file: 
+  
+    nc remote-host 40000 > capture.cap
 
-Save a local capture: wicap -o > capture.cap
+To save a local capture: 
 
-Open a remote capture live in Wireshark: nc remote-host 40000 | wireshark -k -i -
+    wicap -o > capture.cap
+
+To open a remote capture live in Wireshark: 
+
+    nc remote-host 40000 | wireshark -k -i -
